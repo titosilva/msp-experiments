@@ -40,6 +40,8 @@ void start() {
 
     RESET_GREEN_LED;
     countdown(50000);
+
+    TA0CTL = TASSEL__SMCLK | ID__2 | MC__CONTINUOUSOUS | TACLR;
 }
 
 // Utils ===========================
