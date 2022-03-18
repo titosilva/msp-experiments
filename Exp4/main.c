@@ -13,6 +13,9 @@
 #define FREQ_HALF_ACLK 16384
 
 // GLOBAL VARS ------------------------------------------
+volatile int waiting_falling_edge = 0;
+volatile int rising_capture_ccr = -1;
+volatile int falling_capture_ccr = -1;
 // ------------------------------------------------------
 
 // FUNCTION SIGNATURES ----------------------------------
@@ -35,15 +38,7 @@ int main(void)
 	config_timers();
 	__enable_interrupt();
 
-    volatile int i;
-	while(1)
-	{
-        for (i = 100; i < 5000; i++)
-        {
-            buzzer_play(i);
-            countdown(50000);
-        }
-	}
+	while(1);
 
 	return 0;
 }
@@ -52,8 +47,26 @@ int main(void)
 // Configs
 void config_timers(void)
 {
-    // Buzzer (PWM)
+    // HC-SR04 Trigger
+    TA0CTL = TASSEL__ACLK | MC__UP;
+    // For about 20 measures / second;
+    TA0CCR0 = 3276;
+    TA0CCR4 = 1638;
+    // Output (PWM)
+    TA0CCTL4 = OUTMOD_6;
+    P1SEL |= BIT5;
+    P1DIR |= BIT5;
+
+    // HC-SR04 Echo
+    TA1CTL = TASSEL__SMCLK | MC__CONTINUOUS;
+    // For about 20 measures / second;
+    // Input (Capture - both edges)
+    TA1CCTL1 = CM_3 | CCIS_0 | SCS | CAP | CCIE;
+    P2SEL |= BIT0;
+
+    // Buzzer
     TA2CTL = TASSEL__ACLK | MC__UP;
+    // Output (PWM)
     TA2CCTL2 = OUTMOD_6;
     P2SEL |= BIT5;
     P2DIR |= BIT5;
@@ -85,21 +98,31 @@ void countdown(int count)
 
 // INTERRUPTS -------------------------------------------
 // Timers
-//#pragma vector = TIMER2_A0_VECTOR
-//__interrupt void timer2_a0_vector_interrupt(void)
-//{
-//    if (TA2R >= 40000 / scale[buzzer_note] - 100) {
-//        ta2_counter++;
-//    }
-//
-//    if (ta2_counter == 60000 / scale[buzzer_note]) {
-//        ta2_counter = 0;
-//        buzzer_note = buzzer_note + 1;
-//        if (buzzer_note == 28) {
-//            buzzer_note = 0;
-//        }
-//        TA2CCR0 = 40000 / scale[buzzer_note];
-//        TA2CCR2 = 20000 / scale[buzzer_note];
-//    }
-//}
+#pragma vector = TIMER1_A1_VECTOR
+__interrupt void timer1_a1_interrupt(void)
+{
+    if (TA1IV != TA1IV_TA1CCR1)
+    {
+        return;
+    }
+
+    volatile int rising_edge = P2IN & BIT0;
+    if (rising_edge)
+    {
+        rising_capture_ccr = TA1CCR1;
+        waiting_falling_edge = 1;
+        return;
+    }
+
+    if (!rising_edge && waiting_falling_edge)
+    {
+        falling_capture_ccr = TA1CCR1;
+        volatile int echo = falling_capture_ccr - rising_capture_ccr;
+        echo += (TA1CTL & COV)? FREQ_ACLK : 0;
+        waiting_falling_edge = 0;
+    }
+
+
+    TA1CCTL1 |= TACLR;
+}
 // ------------------------------------------------------
