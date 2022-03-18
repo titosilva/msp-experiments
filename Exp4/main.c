@@ -27,8 +27,14 @@
 volatile int waiting_falling_edge = 0;
 volatile unsigned int rising_capture_ccr = 0;
 volatile unsigned int falling_capture_ccr = 0;
-volatile unsigned int dist_last_measurements[MAX_MEASUREMENTS];
-volatile int quantity_of_measurements = 1;
+volatile unsigned int dist_last_measurements[MAX_MEASUREMENTS] = {
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0
+};
+volatile int measurement_index = 1;
+volatile long sum_of_measurements = 0;
 // ------------------------------------------------------
 
 // FUNCTION SIGNATURES ----------------------------------
@@ -213,21 +219,16 @@ __interrupt void timer1_a1_interrupt(void)
             return;
         }
 
-        if (++quantity_of_measurements > MAX_MEASUREMENTS)
+        if (++measurement_index > MAX_MEASUREMENTS)
         {
-            quantity_of_measurements = 1;
+            measurement_index = 1;
         }
 
-        dist_last_measurements[quantity_of_measurements - 1] = dist;
+        sum_of_measurements -= dist_last_measurements[measurement_index - 1];
+        dist_last_measurements[measurement_index - 1] = dist;
+        sum_of_measurements += dist_last_measurements[measurement_index - 1];
 
-        volatile unsigned int i = 0;
-        volatile long sum = 0;
-        for (i = 0; i < MAX_MEASUREMENTS; i++)
-        {
-            sum += dist_last_measurements[i];
-        }
-
-        volatile unsigned int average_dist = sum >> 4;
+        volatile unsigned int average_dist = sum_of_measurements >> 4;
 
         if (S1_ON || S2_ON) {
             buzzer_play(dist_to_buzzer_note(average_dist));
