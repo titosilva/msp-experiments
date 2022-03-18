@@ -11,11 +11,14 @@
 
 #define FREQ_ACLK 32768
 #define FREQ_HALF_ACLK 16384
+#define MAX_MEASUREMENTS 16
 
 // GLOBAL VARS ------------------------------------------
 volatile int waiting_falling_edge = 0;
-volatile int rising_capture_ccr = -1;
-volatile int falling_capture_ccr = -1;
+volatile unsigned int rising_capture_ccr = 0;
+volatile unsigned int falling_capture_ccr = 0;
+volatile unsigned int echo_last_measurements[MAX_MEASUREMENTS];
+volatile int echo_quantity_of_measurements = 1;
 // ------------------------------------------------------
 
 // FUNCTION SIGNATURES ----------------------------------
@@ -28,7 +31,6 @@ void buzzer_play(int frequency);
 
 // Utils
 int frequency_to_aclk_half_cycles(int frequency);
-void countdown(int count);
 // ------------------------------------------------------
 
 int main(void)
@@ -65,7 +67,7 @@ void config_timers(void)
     P2SEL |= BIT0;
 
     // Buzzer
-    TA2CTL = TASSEL__ACLK | MC__UP;
+    TA2CTL = TASSEL__SMCLK | MC__UP;
     // Output (PWM)
     TA2CCTL2 = OUTMOD_6;
     P2SEL |= BIT5;
@@ -83,16 +85,7 @@ void buzzer_play(int frequency)
 // Utils
 int frequency_to_aclk_half_cycles(int frequency)
 {
-    return FREQ_HALF_ACLK / frequency;
-}
-
-void countdown(int count)
-{
-    volatile int x, i;
-    for (i = 0; i < 500; i++) {
-        x = count;
-        while(--x > 0);
-    }
+    return frequency >> 1;
 }
 // ------------------------------------------------------
 
@@ -101,28 +94,29 @@ void countdown(int count)
 #pragma vector = TIMER1_A1_VECTOR
 __interrupt void timer1_a1_interrupt(void)
 {
-    if (TA1IV != TA1IV_TA1CCR1)
-    {
-        return;
-    }
-
-    volatile int rising_edge = P2IN & BIT0;
-    if (rising_edge)
+    if (P2IN & BIT0)
     {
         rising_capture_ccr = TA1CCR1;
         waiting_falling_edge = 1;
         return;
     }
 
-    if (!rising_edge && waiting_falling_edge)
+    falling_capture_ccr = TA1CCR1;
+
+    if (++echo_quantity_of_measurements > MAX_MEASUREMENTS)
     {
-        falling_capture_ccr = TA1CCR1;
-        volatile int echo = falling_capture_ccr - rising_capture_ccr;
-        echo += (TA1CTL & COV)? FREQ_ACLK : 0;
-        waiting_falling_edge = 0;
+        echo_quantity_of_measurements = 1;
     }
+    echo_last_measurements[echo_quantity_of_measurements - 1] =
+            (falling_capture_ccr < rising_capture_ccr)?
+            falling_capture_ccr - rising_capture_ccr :
+            0xFFFF + falling_capture_ccr - rising_capture_ccr;
 
-
-    TA1CCTL1 |= TACLR;
+    volatile unsigned int i = 0, sum = 0;
+    for (i = 0; i < MAX_MEASUREMENTS; i++)
+    {
+        sum += echo_last_measurements[i];
+    }
+    buzzer_play(sum);
 }
 // ------------------------------------------------------
