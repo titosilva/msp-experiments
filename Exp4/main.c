@@ -214,7 +214,7 @@ __interrupt void timer1_a1_interrupt(void)
                 0xFFFF + falling_capture_ccr - rising_capture_ccr
         );
 
-        if (dist > 60000) {
+        if (dist > 65000) {
             waiting_falling_edge = 0;
             return;
         }
