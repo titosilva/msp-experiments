@@ -5,4 +5,4 @@ targetConfigs
 Debug
 .settings
 .launches
-*.cmd
+**.cmd
