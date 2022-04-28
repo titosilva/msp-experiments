@@ -116,40 +116,10 @@ __interrupt void __adc12_interrupt(void)
 {
     switch(__even_in_range(ADC12IV,0x24)) {
         case ADC12IV_NONE:
-                break;
+            break;
         case ADC12IV_ADC12OVIFG:    //MEMx overflow
             break;
         case ADC12IV_ADC12TOVIFG:  //Conversion Time overflow
-            break;
-        case ADC12IV_ADC12IFG0:       //MEM0 Ready
-            break;
-        case ADC12IV_ADC12IFG1:      //MEM1 Ready
-            break;
-        case ADC12IV_ADC12IFG2:      //MEM2 Ready
-            break;
-        case ADC12IV_ADC12IFG3:      //MEM3 Ready
-            break;
-        case ADC12IV_ADC12IFG4:      //MEM4 Ready
-            break;
-        case ADC12IV_ADC12IFG5:      //MEM5 Ready
-            break;
-        case ADC12IV_ADC12IFG6:      //MEM6 Ready
-            break;
-        case ADC12IV_ADC12IFG7:      //MEM7 Ready
-            break;
-        case ADC12IV_ADC12IFG8:      //MEM8 Ready
-            break;
-        case ADC12IV_ADC12IFG9:      //MEM9 Ready
-            break;
-        case ADC12IV_ADC12IFG10:      //MEM10 Ready
-            break;
-        case ADC12IV_ADC12IFG11:      //MEM11 Ready
-            break;
-        case ADC12IV_ADC12IFG12:      //MEM12 Ready
-            break;
-        case ADC12IV_ADC12IFG13:      //MEM13 Ready
-            break;
-        case ADC12IV_ADC12IFG14:      //MEM14 Ready
             break;
         case ADC12IV_ADC12IFG15:
             // ADC12MEM15 preenchida
