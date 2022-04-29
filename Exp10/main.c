@@ -80,15 +80,17 @@ int main(void)
 
     volatile int mode = 0;
     while (true) {
-        // Esperear até as medidas serem feitas
-        while (!measurements_ready) {
-            debouncing -= debouncing > 0? 1 : 0;
+        debouncing -= debouncing > 0? 1 : 0;
 
-            if (!(P6IN & BIT5) && debouncing <= 0) {
-                mode = (mode + 1) % 6;
-                debouncing = 1000;
-                update_output(mode, &lcd);
-            }
+        if (!(P6IN & BIT5) && debouncing <= 0) {
+            mode = (mode + 1) % 6;
+            debouncing = 1000;
+            update_output(mode, &lcd);
+        }
+
+        // Esperear até as medidas serem feitas
+        if (!measurements_ready) {
+            continue;
         }
 
         measurements_ready = 0;
@@ -103,8 +105,6 @@ int main(void)
 
 void update_output(int mode, LCD* lcd)
 {
-    lcd_clear(lcd);
-
     switch(mode + 1) {
     case 1:
         printVoltage("A1", measurements[0], lcd);
@@ -161,7 +161,7 @@ void configure_adc_trigger_clk()
     TA0CTL = TASSEL__ACLK | MC_1;
     TA0CCTL1 = OUTMOD_6;
 
-    TA0CCR0 = 8192; // ACLK / 4 ~ 4Hz
+    TA0CCR0 = 512; // ACLK / 64 ~ 64Hz
     TA0CCR1 = TA0CCR0 >> 1; // 50% duty cycle
 }
 
