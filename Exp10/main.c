@@ -139,6 +139,13 @@ void configure_leds()
 
     P2SEL &= ~BIT0;
     P2DIR |= BIT0;
+
+    // PWM Led -> P2.5
+    TA2CTL = TASSEL__SMCLK | MC__UP;
+    // Output (PWM)
+    TA2CCTL2 = OUTMOD_6;
+    P2SEL |= BIT5;
+    P2DIR |= BIT5;
 }
 
 void configure_buttons()
@@ -468,6 +475,8 @@ void printLuminosity(char* name, unsigned int measurement, LCD* lcd)
 
     if ((measurement >> 1) >= remaining) {
         char text[12] = "escuro";
+        TA2CCR0 = 20;
+        TA2CCR2 = 1;
         volatile int i = 0;
         for (i = 0; i < 12 && text[i] != '\0'; i++) {
             lcd->buffer[0][3+i] = text[i];
@@ -477,6 +486,8 @@ void printLuminosity(char* name, unsigned int measurement, LCD* lcd)
 
     if ((remaining >> 1) >= measurement) {
         char text[12] = "iluminado";
+        TA2CCR0 = 20;
+        TA2CCR2 = 19;
         volatile int i = 0;
         for (i = 0; i < 12 && text[i] != '\0'; i++) {
             lcd->buffer[0][3+i] = text[i];
@@ -485,6 +496,8 @@ void printLuminosity(char* name, unsigned int measurement, LCD* lcd)
     }
 
     char text[12] = "lusco-fusco";
+    TA2CCR0 = 20;
+    TA2CCR2 = 10;
     volatile int i = 0;
     for (i = 0; i < 12 && text[i] != '\0'; i++) {
         lcd->buffer[0][3+i] = text[i];
