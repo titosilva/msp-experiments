@@ -84,7 +84,8 @@ int main(void)
 
         if (!(P6IN & BIT5) && debouncing <= 0) {
             mode = (mode + 1) % 6;
-            debouncing = 1000;
+            debouncing = 2;
+            lcd_clear(&lcd);
             update_output(mode, &lcd);
         }
 
