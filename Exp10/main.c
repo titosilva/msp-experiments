@@ -60,6 +60,7 @@ void millivolts_to_volt_string(int millivolts, char* result);
 void to_hex_string(int value, char* result);
 void printVoltage(char* name, unsigned int measurement, LCD* lcd);
 void printLuminosity(char* name, unsigned int measurement, LCD* lcd);
+void print_bars(unsigned int measurement, LCD* lcd);
 void copy_str(char* origin, char* dest, int length);
 void update_output(int mode, LCD* lcd);
 
@@ -109,25 +110,45 @@ void update_output(int mode, LCD* lcd)
     switch(mode + 1) {
     case 1:
         printVoltage("A1", measurements[0], lcd);
+        print_bars(measurements[0], lcd);
         break;
     case 2:
         printVoltage("A2", measurements[1], lcd);
+        print_bars(measurements[1], lcd);
         break;
     case 3:
         printVoltage("A3", measurements[2], lcd);
+        print_bars(measurements[2], lcd);
         break;
     case 4:
         printVoltage("A4", measurements[3], lcd);
+        print_bars(measurements[3], lcd);
         break;
     case 5:
         printLuminosity("A3", measurements[2], lcd);
+        print_bars(measurements[2], lcd);
         break;
     case 6:
         printLuminosity("A4", measurements[3], lcd);
+        print_bars(measurements[3], lcd);
         break;
     }
 
+
     lcd_flush(lcd);
+}
+
+void print_bars(unsigned int measurement, LCD* lcd) {
+    // Measurement / 256 barras
+    volatile int bars = measurement >> 8;
+    volatile int i = 0;
+    for (i = 0; i < 16; i++) {
+        if (i < bars) {
+            lcd -> buffer[1][i] = '\xff';
+        } else {
+            lcd -> buffer[1][i] = ' ';
+        }
+    }
 }
 
 void configure_leds()
@@ -205,7 +226,7 @@ void configure_adc()
                 ADC12CONSEQ_3; // Sequência de canais com repetição
 
     ADC12CTL2 = ADC12TCOFF | // Desliga o sensor de temperatura
-                ADC12RES_0;  // Resolução de 8 bits
+                ADC12RES_2;  // Resolução de 12 bits
 
 
     //Configurações dos canais
@@ -439,8 +460,8 @@ void to_hex_string(int value, char* result)
 
 void printVoltage(char* name, unsigned int measurement, LCD* lcd)
 {
-    // Arredondamento: 1000 * 3,3 / 255 = 12.94 ~ (13 - 1/16)
-    volatile int millivolts = measurement * 13 - (measurement >> 4);
+    // Arredondamento: 1000 * 3,3 / 4096 = 0,805 ~ (4 / 5)
+    volatile int millivolts = (measurement << 2) / 5;
     char voltage_str[5];
     millivolts_to_volt_string(millivolts, voltage_str);
     char hex_str[4];
@@ -472,10 +493,10 @@ void printLuminosity(char* name, unsigned int measurement, LCD* lcd)
     lcd->buffer[0][1] = name[1];
     lcd->buffer[0][2] = ':';
 
-    volatile unsigned int remaining = 255 - measurement;
+    volatile unsigned int remaining = 4096 - measurement;
 
     if ((measurement >> 1) >= remaining) {
-        char text[12] = "escuro";
+        char text[12] = "escuro      ";
         TA2CCR0 = 20;
         TA2CCR2 = 1;
         volatile int i = 0;
@@ -486,7 +507,7 @@ void printLuminosity(char* name, unsigned int measurement, LCD* lcd)
     }
 
     if ((remaining >> 1) >= measurement) {
-        char text[12] = "iluminado";
+        char text[12] = "iluminado   ";
         TA2CCR0 = 20;
         TA2CCR2 = 19;
         volatile int i = 0;
@@ -496,7 +517,7 @@ void printLuminosity(char* name, unsigned int measurement, LCD* lcd)
         return;
     }
 
-    char text[12] = "lusco-fusco";
+    char text[12] = "lusco-fusco ";
     TA2CCR0 = 20;
     TA2CCR2 = 10;
     volatile int i = 0;
