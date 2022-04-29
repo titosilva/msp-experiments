@@ -59,7 +59,9 @@ void configure_adc();
 void millivolts_to_volt_string(int millivolts, char* result);
 void to_hex_string(int value, char* result);
 void printVoltage(char* name, unsigned int measurement, LCD* lcd);
+void printLuminosity(char* name, unsigned int measurement, LCD* lcd);
 void copy_str(char* origin, char* dest, int length);
+void update_output(int mode, LCD* lcd);
 
 volatile int debouncing = 0;
 
@@ -77,40 +79,54 @@ int main(void)
     __enable_interrupt();
 
     volatile int mode = 0;
-    volatile int sk_activated;
     while (true) {
         // Esperear até as medidas serem feitas
-        while (!measurements_ready);
+        while (!measurements_ready) {
+            debouncing -= debouncing > 0? 1 : 0;
 
-        lcd_clear(&lcd);
-
-        switch(mode + 1) {
-        case 1:
-            printVoltage("A1", measurements[0], &lcd);
-            break;
-        case 2:
-            printVoltage("A2", measurements[1], &lcd);
-            break;
-        case 3:
-            printVoltage("A3", measurements[2], &lcd);
-            break;
-        case 4:
-            printVoltage("A4", measurements[3], &lcd);
-            break;
+            if (!(P6IN & BIT5) && debouncing <= 0) {
+                mode = (mode + 1) % 6;
+                debouncing = 1000;
+                update_output(mode, &lcd);
+            }
         }
 
-        lcd_flush(&lcd);
+        measurements_ready = 0;
+
+        update_output(mode, &lcd);
+
         MAIN_LED_TOGGLE;
-
-        debouncing -= debouncing > 0? 5 : 0;
-        sk_activated = !(P6IN & BIT5);
-        if (sk_activated && debouncing <= 0) {
-            mode = (mode + 1) % 5;
-            debouncing = 20;
-        }
     }
 
     return 0;
+}
+
+void update_output(int mode, LCD* lcd)
+{
+    lcd_clear(lcd);
+
+    switch(mode + 1) {
+    case 1:
+        printVoltage("A1", measurements[0], lcd);
+        break;
+    case 2:
+        printVoltage("A2", measurements[1], lcd);
+        break;
+    case 3:
+        printVoltage("A3", measurements[2], lcd);
+        break;
+    case 4:
+        printVoltage("A4", measurements[3], lcd);
+        break;
+    case 5:
+        printLuminosity("A3", measurements[2], lcd);
+        break;
+    case 6:
+        printLuminosity("A4", measurements[3], lcd);
+        break;
+    }
+
+    lcd_flush(lcd);
 }
 
 void configure_leds()
@@ -440,6 +456,39 @@ void printVoltage(char* name, unsigned int measurement, LCD* lcd)
     lcd->buffer[0][13] = hex_str[1];
     lcd->buffer[0][14] = hex_str[2];
     lcd->buffer[0][15] = hex_str[3];
+}
+
+void printLuminosity(char* name, unsigned int measurement, LCD* lcd)
+{
+    lcd->buffer[0][0] = name[0];
+    lcd->buffer[0][1] = name[1];
+    lcd->buffer[0][2] = ':';
+
+    volatile unsigned int remaining = 255 - measurement;
+
+    if ((measurement >> 1) >= remaining) {
+        char text[12] = "escuro";
+        volatile int i = 0;
+        for (i = 0; i < 12 && text[i] != '\0'; i++) {
+            lcd->buffer[0][3+i] = text[i];
+        }
+        return;
+    }
+
+    if ((remaining >> 1) >= measurement) {
+        char text[12] = "iluminado";
+        volatile int i = 0;
+        for (i = 0; i < 12 && text[i] != '\0'; i++) {
+            lcd->buffer[0][3+i] = text[i];
+        }
+        return;
+    }
+
+    char text[12] = "lusco-fusco";
+    volatile int i = 0;
+    for (i = 0; i < 12 && text[i] != '\0'; i++) {
+        lcd->buffer[0][3+i] = text[i];
+    }
 }
 
 void copy_str(char* origin, char* dest, int length) {
