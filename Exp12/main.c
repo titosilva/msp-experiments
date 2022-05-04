@@ -68,7 +68,7 @@ int main(void)
         while(!(UCB1IFG & UCRXIFG));
 
         // Escreve o byte no LCD
-        lcd->buffer[line][col] = UCB1RXBUF;
+        lcd.buffer[line][col] = UCB1RXBUF;
 
         col = (col + 1) % 16;
         if (col == 0) {
@@ -121,9 +121,17 @@ void initialize_I2C_UCB1_SlaveReceiver()
 
     //Configura os pinos
     P4SEL |= BIT1 | BIT2;
+    P4REN &= ~BIT1; // Resistores externos.
+    P4REN &= ~BIT2;
 
     UCB1CTL0 = UCMODE_3 |    //I2C Mode
                UCSYNC;       //Synchronous Mode
+
+    UCB1CTL1 = UCSSEL__ACLK | UCSWRST;
+
+    //Divisor de clock para o BAUDRate
+    UCB1BR0 = 2;
+    UCB1BR1 = 0;
 
     // Configura o endereço
     UCB1I2COA = MSP_ADDRESS;
@@ -148,7 +156,6 @@ LCD initialize_lcd(byte address)
     lcd_clear(&lcd);
     lcd_send_byte(&lcd, 0x06, true);
     lcd_send_byte(&lcd, 0x0F, true);
-    lcd_clear(&lcd);
 
     return lcd;
 }
@@ -239,18 +246,7 @@ void master_TransmitOneByte(unsigned char address, unsigned char data)
     //Aguardo o acknowledge
     while (UCB0CTL1 & UCTXSTT);
 
-    //Verifico se é um ACK ou um NACK
-    if ((UCB0IFG & UCNACKIFG) != 0)
-    {
-        //Peço uma condição de parada
-        LED_RED_ON;
-        UCB0CTL1 |= UCTXSTP;
-    } else
-    {
-        //Peço uma condição de parada
-        LED_GREEN_ON;
-        UCB0CTL1 |= UCTXSTP;
-    }
+    UCB0CTL1 |= UCTXSTP;
 
     return;
 }
