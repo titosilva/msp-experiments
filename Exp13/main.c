@@ -41,6 +41,7 @@ int main(void)
         // Aguarda fim da transferência no DMA1
         while (!(DMA1CTL & DMAIFG));
         // Ativa transferência no DMA2
+        DMA2CTL &= ~DMAIFG;
         DMA2CTL |= DMAEN;
         update_leds_according_to_vec(vector1);
 
@@ -48,6 +49,7 @@ int main(void)
         // Aguarda fim da transferência no DMA2
         while (!(DMA2CTL & DMAIFG));
         // Ativa transferência no DMA1
+        DMA1CTL &= ~DMAIFG;
         DMA1CTL |= DMAEN;
         update_leds_according_to_vec(vector2);
     }
@@ -66,14 +68,20 @@ void update_leds_according_to_vec(int* vector)
 
     avg = avg >> 7; // Divide por 128
 
+    RED_LED_OFF;
+    GREEN_LED_OFF;
+
+    // Faz o led piscar para ajudar a conferir o tempo
+    // para as amostras
+//    volatile int x = 30000;
+//    while(--x);
+
     if (avg <= 1000) {
         RED_LED_ON;
-        GREEN_LED_OFF;
     } else if (avg <= 3000) {
         RED_LED_ON;
         GREEN_LED_ON;
     } else {
-        RED_LED_OFF;
         GREEN_LED_ON;
     }
 }
@@ -92,7 +100,7 @@ void configure_dma1()
     DMACTL0 |= DMA1TSEL_24; // Disparo baseado no ADC12
 
     // Operar com words
-    DMA1CTL = DMADT_4 | // Modo Simples com repetição
+    DMA1CTL = DMADT_0 | // Modo Simples com repetição
              DMASRCINCR_0 | // Fonte fixa
              DMADSTINCR_3 ; // Destino incrementando
 
@@ -110,7 +118,7 @@ void configure_dma2()
     DMACTL1 |= DMA2TSEL_24; // Disparo baseado no ADC12
 
     // Operar com words
-    DMA2CTL = DMADT_4 | // Modo Simples com repetição
+    DMA2CTL = DMADT_0 | // Modo Simples com repetição
              DMASRCINCR_0 | // Fonte fixa
              DMADSTINCR_3 ; // Destino incrementando
 
