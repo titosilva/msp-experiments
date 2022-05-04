@@ -92,7 +92,7 @@ void configure_dma1()
     DMACTL0 |= DMA1TSEL_24; // Disparo baseado no ADC12
 
     // Operar com words
-    DMA1CTL = DMADT_0 | // Modo Simples sem repetição
+    DMA1CTL = DMADT_4 | // Modo Simples com repetição
              DMASRCINCR_0 | // Fonte fixa
              DMADSTINCR_3 ; // Destino incrementando
 
@@ -107,17 +107,17 @@ void configure_dma1()
 
 void configure_dma2()
 {
-    DMACTL0 |= DMA2TSEL_24; // Disparo baseado no ADC12
+    DMACTL1 |= DMA2TSEL_24; // Disparo baseado no ADC12
 
     // Operar com words
-    DMA2CTL = DMADT_0 | // Modo Simples sem repetição
+    DMA2CTL = DMADT_4 | // Modo Simples com repetição
              DMASRCINCR_0 | // Fonte fixa
              DMADSTINCR_3 ; // Destino incrementando
 
     // Fonte no ADC MEM0
     DMA2SA = &ADC12MEM0;
 
-    // DMA1 -> vector1
+    // DMA2 -> vector2
     DMA2DA = vector2;
 
     DMA2SZ = SAMPLE_SIZE; // Quantidade de transferências
@@ -156,13 +156,16 @@ void configure_adc()
     // K = 32
 
     ADC12CTL0 = ADC12SHT0_3 | // 32 ciclos de clock para o sampling time
+                ADC12SHT1_3 | // 32 ciclos de clock para o sampling time
                 ADC12ON; // Liga o ADC
 
     ADC12CTL1 = ADC12CSTARTADD_0 | // Start address 0
                 ADC12SHS_1 | // Conversão via TA0.1
                 ADC12DIV_0 | // Divisor de clock: 1
                 ADC12SSEL_0 | // MODCLK (4.8MHz)
-                ADC12CONSEQ_0; // Sequência de canais com repetição
+                ADC12CONSEQ_2; // Um canal com repetição
+
+    // Usando o modo de um canal com repetição para manter o ADC12 sempre habilitado
 
     ADC12CTL2 = ADC12TCOFF | // Desliga o sensor de temperatura
                 ADC12RES_2;  // Resolução de 12 bits
