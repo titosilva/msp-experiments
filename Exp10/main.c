@@ -17,7 +17,7 @@ typedef struct {
 } LCD;
 
 
-#define LCD_I2C_ADDRESS 0x27
+#define LCD_ADDRESS 0x27
 #define LCD_ENABLE_BIT BIT2
 #define LCD_BACKLIGHT_BIT BIT3
 #define LCD_SET_DDRAM_ADDRESS_BIT BIT7
@@ -75,7 +75,7 @@ int main(void)
     configure_adc();
 
     initialize_I2C_UCB0_MasterTransmitter();
-    LCD lcd = initialize_lcd(LCD_I2C_ADDRESS);
+    LCD lcd = initialize_lcd(LCD_ADDRESS);
 
     __enable_interrupt();
 
@@ -292,7 +292,7 @@ void initialize_I2C_UCB0_MasterTransmitter()
 LCD initialize_lcd(byte address)
 {
     LCD lcd;
-    lcd.address = LCD_I2C_ADDRESS;
+    lcd.address = LCD_ADDRESS;
     lcd.backlight_on = true;
 
     lcd_send_nibble(&lcd, 0x03, true);
