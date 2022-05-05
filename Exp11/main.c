@@ -1,14 +1,23 @@
 #include <msp430.h> 
 
+#define TOGGLE_RED_LED (P1OUT ^= BIT0)
+#define TOGGLE_GREEN_LED (P4OUT ^= BIT7)
+
+#define PASSWORD_LEN 5
+
 #define FLLN(x) ((x)-1)
 void clockInit();
 void pmmVCore (unsigned int level);
 
 void configSPIUCB1();
+void configSPIUCB0ForTest();
 void configButton();
+void configLeds();
 
 volatile int actionFlag = 0;
-volatile char password[5];
+volatile char password[PASSWORD_LEN];
+volatile char password_idx = -1;
+volatile char sending_password = 0;
 
 int main(void)
 {
@@ -18,30 +27,49 @@ int main(void)
 
     //Código do aluno vem aqui.
     configSPIUCB1();
+    configSPIUCB0ForTest();
+
     configButton();
+    configLeds();
     __enable_interrupt();
 
-    while(true) {
-        // Esperar até poder realizar as ações
-        while(!actionFlag);
 
-        // A senha será introduzida por um 0
-        while(!(UCB1CTL0 & UCRXIFG) && UCB1RXBUF != 0);
+    volatile char received_byte;
+    while (1) {
+        // Iniciar comunicação
+        UCB1TXBUF = 0x01;
 
-        // Fazer leitura da senha
-        for (int i = 0; i < 5; i++) {
-            while(!(UCB1CTL0 & UCRXIFG));
-            password[i] = UCB1RXBUF;
+        while(!(UCB1IFG & UCRXIFG));
+
+        received_byte = UCB1RXBUF;
+
+        if (sending_password) {
+
+            UCB1TXBUF = password[password_idx];
+
+            if (received_byte == 0x02) {
+                password_idx++;
+            }
+
+            if(password_idx == PASSWORD_LEN) {
+                sending_password = 0;
+                password_idx = -1;
+            }
         }
 
-        // Enviar senha
-        for (int i = 0; i < 5; i++) {
-            while(!(UCB1CTL0 & UCTXIFG));
-            UCB1TXBUF = password[i];
+        if (password_idx >= 0) {
+            password[password_idx] = received_byte;
         }
+        password_idx++;
+        UCB1TXBUF = 0x01;
 
-        actionFlag = 0;
+        if (password_idx == PASSWORD_LEN) {
+            sending_password = 1;
+            password_idx = 0;
+        }
     }
+
+    while(1);
 
     return 0;
 }
@@ -49,18 +77,19 @@ int main(void)
 void configSPIUCB1()
 {
     UCB1CTL1 = UCSWRST; // Desliga o módulo
-    UCB1CTL1 = UCMODE_0 | UCSYNC; // SPI 3 pinos, síncrono
+    UCB1CTL1 |= UCMODE_0 | UCSYNC; // SPI 3 pinos, síncrono
     UCB1CTL0 |= UCMSB; // MSB First
 
     // Configurar como master
-    UCB1CTL1 |= UCSSEL__SMCLK;
+    UCB1CTL1 |= UCSSEL__ACLK;
     UCB1CTL0 |= UCMST;
+    UCB1BR0 = 0;
+    UCB1BR1 = 0;
 
     // Pinos direcionados para o módulo
     P4SEL |= BIT1 | BIT2 | BIT3;
 
     UCB1CTL1 &= ~UCSWRST; // Liga o módulo novamente
-    // Sem interrupções (será usado pooling)
 }
 
 void configButton()
@@ -74,18 +103,25 @@ void configButton()
     P2IE |= BIT1;
 }
 
+void configLeds()
+{
+    P4SEL &= ~BIT7;
+    P4DIR |= BIT7;
+    P4OUT &= ~BIT7;
+
+    P1SEL &= ~BIT0;
+    P1DIR |= BIT0;
+    P1OUT |= BIT0;
+}
+
 // INTERRUPÇÕES ==================================================================
+volatile int debouncing = 0;
 #pragma vector = PORT2_VECTOR
 __interrupt void __p2_interrupt_handle(void)
 {
     switch(P2IV) {
     case P2IV_P2IFG1:
         actionFlag = 1;
-
-        // Debounce
-        volatile int x = 50000;
-        while(--x);
-
         break;
     default:
         break;
@@ -156,4 +192,87 @@ void clockInit()
               SELS__XT2CLK    |             // SMCLK = XT2   =>   4.000.000 Hz
               SELM__DCOCLK;                 // MCLK  = DCO   =>  25.000.000 Hz
 
+}
+
+// FUNÇÕES DE TESTE
+volatile char __test_password[PASSWORD_LEN] = "12345";
+volatile int __test_password_idx = 0;
+volatile char __recv_password[PASSWORD_LEN];
+volatile int __recv_password_idx = 0;
+volatile char __recv_byte;
+
+void configSPIUCB0ForTest()
+{
+    UCB0CTL1 = UCSWRST; // Desliga o módulo
+    UCB0CTL1 |= UCMODE_0 | UCSYNC; // SPI 3 pinos, síncrono
+    UCB0CTL0 |= UCMSB; // MSB First
+
+    // Pinos direcionados para o módulo
+    P3SEL |= BIT0 | BIT1 | BIT2;
+
+    UCB0CTL1 &= ~UCSWRST; // Liga o módulo novamente
+
+    UCB0IE = UCRXIE;
+}
+
+#pragma vector = USCI_B0_VECTOR
+__interrupt void __ucb0_interrupt_handle()
+{
+    switch (_even_in_range(UCB0IV, 0x04))
+    {
+    case USCI_NONE:
+        break;
+    case USCI_UCRXIFG:
+        __recv_byte = UCB0RXBUF;
+        if (__recv_password_idx > 0)
+        {
+            __recv_password[__recv_password_idx] = __recv_byte;
+            __recv_password_idx++;
+
+            if (__recv_password_idx == PASSWORD_LEN)
+            {
+                volatile int i = 0;
+                volatile int correct_password = 1;
+                for (i = 0; i < PASSWORD_LEN; i++)
+                {
+                    if (__recv_password[i] != __test_password[i])
+                    {
+                        correct_password = 0;
+                        break;
+                    }
+                }
+
+                if (correct_password)
+                {
+                    TOGGLE_GREEN_LED;
+                    TOGGLE_RED_LED;
+                }
+                __recv_password_idx = 0;
+            } else {
+                UCB0TXBUF = 0x02;
+            }
+
+            break;
+        }
+
+        if (__recv_byte == __test_password[0])
+        {
+            __recv_password_idx = 1;
+            __recv_password[0] = __test_password[0];
+            UCB0TXBUF = 0x02;
+            break;
+        }
+
+        volatile char to_send = __test_password[__test_password_idx];
+        UCB0TXBUF = to_send;
+        __test_password_idx++;
+        if(__test_password_idx == PASSWORD_LEN) {
+            __test_password_idx = 0;
+        }
+        break;
+    case USCI_UCTXIFG:
+        break;
+    default:
+        break;
+    }
 }
