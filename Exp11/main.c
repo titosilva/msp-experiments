@@ -1,4 +1,4 @@
-#include <msp430.h> 
+#include <msp430.h>
 
 #define TOGGLE_RED_LED (P1OUT ^= BIT0)
 #define TOGGLE_GREEN_LED (P4OUT ^= BIT7)
@@ -14,6 +14,8 @@ void configSPIUCB0ForTest();
 void configButton();
 void configLeds();
 
+char transferFromUCB1(char data);
+
 volatile int actionFlag = 0;
 volatile char password[PASSWORD_LEN];
 volatile char password_idx = -1;
@@ -28,7 +30,6 @@ int main(void)
     //Código do aluno vem aqui.
     configSPIUCB1();
     configSPIUCB0ForTest();
-
     configButton();
     configLeds();
     __enable_interrupt();
@@ -36,42 +37,36 @@ int main(void)
 
     volatile char received_byte;
     while (1) {
-        // Iniciar comunicação
-        UCB1TXBUF = 0x01;
+        while (!actionFlag);
 
-        while(!(UCB1IFG & UCRXIFG));
-
-        received_byte = UCB1RXBUF;
-
-        if (sending_password) {
-
-            UCB1TXBUF = password[password_idx];
-
-            if (received_byte == 0x02) {
-                password_idx++;
-            }
-
-            if(password_idx == PASSWORD_LEN) {
-                sending_password = 0;
-                password_idx = -1;
-            }
+        volatile int i = 0;
+        // Iniciar a comunicação
+        received_byte = transferFromUCB1(0x00);
+        // Obter senha
+        for (i = 0; i < PASSWORD_LEN; i++) {
+            received_byte = transferFromUCB1(0x01);
+            password[i] = received_byte;
         }
 
-        if (password_idx >= 0) {
-            password[password_idx] = received_byte;
-        }
-        password_idx++;
-        UCB1TXBUF = 0x01;
-
-        if (password_idx == PASSWORD_LEN) {
-            sending_password = 1;
-            password_idx = 0;
+        for (i = 0; i < PASSWORD_LEN; i++) {
+            transferFromUCB1(password[i]);
         }
     }
 
     while(1);
 
     return 0;
+}
+
+char transferFromUCB1(char data)
+{
+    // Enviar os dados
+    while (!(UCB1IFG & UCTXIFG));
+    UCB1TXBUF = data;
+
+    // Esperar resposta
+    while (!(UCB1IFG & UCRXIFG));
+    return UCB1RXBUF;
 }
 
 void configSPIUCB1()
